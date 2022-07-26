@@ -39,10 +39,11 @@ namespace k8s.Authentication
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    RedirectStandardError = true,                    
                 },
                 EnableRaisingEvents = true,
             };
+
             var tcs = new TaskCompletionSource<bool>();
             process.Exited += (sender, arg) =>
             {
@@ -56,7 +57,12 @@ namespace k8s.Authentication
 
             if (process.ExitCode != 0)
             {
-                throw new KubernetesClientException($"Unable to obtain a token via gcloud command. Error code {process.ExitCode}. \n {err}");
+                // [Mvolo 7/25/2022] Fix: Make sure to propagate the GOOGLE_APPLICATION_CREDENTIALS variable which may be 
+                // set in the current process and  may point to a specific token to use.
+                var credentialsVar = Environment.GetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS");
+
+                // [Mvolo 7/25/2022] Fix: On error, was writing the task.tostring instead of the actual string. Added output and error for debugging gcloud/GCP auth plugin failures.  
+                throw new KubernetesClientException($"Unable to obtain a token via gcloud command. Error code {process.ExitCode}. \r\nGOOGLE_APPLICATION_CREDENTIALS: {credentialsVar} \r\nOUTPUT: {output.Result} \r\nERROR: {err.Result}");
             }
 
             dynamic json = JsonSerializer.Deserialize(await output.ConfigureAwait(false), new
